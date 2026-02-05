@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { StatusBadge, getStatusVariant } from '@/components/ui/status-badge';
-import { mockStaff } from '@/data/mockData';
+ import { mockStaff as initialStaff } from '@/data/mockData';
 import { StaffMember, UserRole } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,15 +18,111 @@ import {
   FlaskConical,
   Pill
 } from 'lucide-react';
+ import {
+   Dialog,
+   DialogContent,
+   DialogDescription,
+   DialogHeader,
+   DialogTitle,
+   DialogTrigger,
+   DialogFooter,
+ } from '@/components/ui/dialog';
+ import { Label } from '@/components/ui/label';
+ import {
+   Select,
+   SelectContent,
+   SelectItem,
+   SelectTrigger,
+   SelectValue,
+ } from '@/components/ui/select';
+ import { toast } from 'sonner';
 
 export default function AdminStaff() {
   const [searchQuery, setSearchQuery] = useState('');
+   const [staff, setStaff] = useState<StaffMember[]>(initialStaff);
+   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+   const [formData, setFormData] = useState({
+     name: '',
+     email: '',
+     role: '' as UserRole | '',
+     department: '',
+     phone: '',
+     specialization: '',
+   });
 
-  const filteredStaff = mockStaff.filter(staff =>
-    staff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    staff.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    staff.department.toLowerCase().includes(searchQuery.toLowerCase())
+   const filteredStaff = staff.filter(s =>
+     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+     s.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+     s.department.toLowerCase().includes(searchQuery.toLowerCase())
   );
+ 
+   const handleAddStaff = () => {
+     if (!formData.name || !formData.email || !formData.role || !formData.department) {
+       toast.error('Please fill in required fields');
+       return;
+     }
+ 
+     const newStaff: StaffMember = {
+       id: `S00${staff.length + 1}`,
+       name: formData.name,
+       email: formData.email,
+       role: formData.role as UserRole,
+       department: formData.department,
+       phone: formData.phone || '+1 (555) 000-0000',
+       status: 'active',
+       joinedAt: new Date().toISOString().split('T')[0],
+       specialization: formData.specialization || undefined,
+     };
+ 
+     setStaff([newStaff, ...staff]);
+     setIsAddDialogOpen(false);
+     resetForm();
+     toast.success('Staff member added successfully');
+   };
+ 
+   const handleEditStaff = () => {
+     if (!editingStaff) return;
+ 
+     setStaff(staff.map(s =>
+       s.id === editingStaff.id
+         ? { 
+             ...s, 
+             name: formData.name || s.name,
+             email: formData.email || s.email,
+             department: formData.department || s.department,
+             phone: formData.phone || s.phone,
+             specialization: formData.specialization || s.specialization,
+           }
+         : s
+     ));
+     setEditingStaff(null);
+     resetForm();
+     toast.success('Staff member updated successfully');
+   };
+ 
+   const openEditDialog = (s: StaffMember) => {
+     setEditingStaff(s);
+     setFormData({
+       name: s.name,
+       email: s.email,
+       role: s.role,
+       department: s.department,
+       phone: s.phone,
+       specialization: s.specialization || '',
+     });
+   };
+ 
+   const resetForm = () => {
+     setFormData({
+       name: '',
+       email: '',
+       role: '',
+       department: '',
+       phone: '',
+       specialization: '',
+     });
+   };
 
   const getRoleIcon = (role: UserRole) => {
     const icons = {
@@ -103,27 +199,27 @@ export default function AdminStaff() {
     {
       key: 'actions',
       header: 'Actions',
-      render: () => (
+       render: (_, row) => (
         <div className="flex gap-2">
-          <Button size="sm" variant="outline">Edit</Button>
-          <Button size="sm" variant="ghost">View</Button>
+           <Button size="sm" variant="outline" onClick={() => openEditDialog(row)}>Edit</Button>
+           <Button size="sm" variant="ghost" onClick={() => toast.info(`Viewing ${row.name}'s profile`)}>View</Button>
         </div>
       )
     }
   ];
 
   const roleCounts = {
-    doctor: mockStaff.filter(s => s.role === 'doctor').length,
-    nurse: mockStaff.filter(s => s.role === 'nurse').length,
-    receptionist: mockStaff.filter(s => s.role === 'receptionist').length,
-    lab: mockStaff.filter(s => s.role === 'lab').length,
-    admin: mockStaff.filter(s => s.role === 'admin').length,
+     doctor: staff.filter(s => s.role === 'doctor').length,
+     nurse: staff.filter(s => s.role === 'nurse').length,
+     receptionist: staff.filter(s => s.role === 'receptionist').length,
+     lab: staff.filter(s => s.role === 'lab').length,
+     admin: staff.filter(s => s.role === 'admin').length,
   };
 
   return (
     <DashboardLayout 
       title="Staff Management" 
-      subtitle={`${mockStaff.length} staff members`}
+       subtitle={`${staff.length} staff members`}
     >
       <div className="space-y-6 animate-fade-in">
         {/* Role Stats */}
@@ -163,10 +259,101 @@ export default function AdminStaff() {
             <Button variant="outline" size="icon">
               <Filter className="h-4 w-4" />
             </Button>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Staff
-            </Button>
+             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+               <DialogTrigger asChild>
+                 <Button>
+                   <Plus className="h-4 w-4 mr-2" />
+                   Add Staff
+                 </Button>
+               </DialogTrigger>
+               <DialogContent>
+                 <DialogHeader>
+                   <DialogTitle>Add New Staff Member</DialogTitle>
+                   <DialogDescription>Create a new staff account</DialogDescription>
+                 </DialogHeader>
+                 <div className="grid gap-4 py-4">
+                   <div className="space-y-2">
+                     <Label>Full Name *</Label>
+                     <Input
+                       value={formData.name}
+                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                       placeholder="Dr. John Doe"
+                     />
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Email *</Label>
+                     <Input
+                       type="email"
+                       value={formData.email}
+                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                       placeholder="john.doe@mediflex.com"
+                     />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                       <Label>Role *</Label>
+                       <Select 
+                         value={formData.role}
+                         onValueChange={(v) => setFormData({ ...formData, role: v as UserRole })}
+                       >
+                         <SelectTrigger>
+                           <SelectValue placeholder="Select role" />
+                         </SelectTrigger>
+                         <SelectContent>
+                           <SelectItem value="doctor">Doctor</SelectItem>
+                           <SelectItem value="nurse">Nurse</SelectItem>
+                           <SelectItem value="receptionist">Receptionist</SelectItem>
+                           <SelectItem value="lab">Lab Staff</SelectItem>
+                           <SelectItem value="pharmacy">Pharmacy</SelectItem>
+                           <SelectItem value="admin">Admin</SelectItem>
+                         </SelectContent>
+                       </Select>
+                     </div>
+                     <div className="space-y-2">
+                       <Label>Department *</Label>
+                       <Select 
+                         value={formData.department}
+                         onValueChange={(v) => setFormData({ ...formData, department: v })}
+                       >
+                         <SelectTrigger>
+                           <SelectValue placeholder="Select department" />
+                         </SelectTrigger>
+                         <SelectContent>
+                           <SelectItem value="Cardiology">Cardiology</SelectItem>
+                           <SelectItem value="General Medicine">General Medicine</SelectItem>
+                           <SelectItem value="Laboratory">Laboratory</SelectItem>
+                           <SelectItem value="Pharmacy">Pharmacy</SelectItem>
+                           <SelectItem value="Front Desk">Front Desk</SelectItem>
+                           <SelectItem value="Administration">Administration</SelectItem>
+                         </SelectContent>
+                       </Select>
+                     </div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                       <Label>Phone</Label>
+                       <Input
+                         value={formData.phone}
+                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                         placeholder="+1 (555) 000-0000"
+                       />
+                     </div>
+                     <div className="space-y-2">
+                       <Label>Specialization</Label>
+                       <Input
+                         value={formData.specialization}
+                         onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                         placeholder="e.g., Cardiology"
+                       />
+                     </div>
+                   </div>
+                 </div>
+                 <DialogFooter>
+                   <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+                   <Button onClick={handleAddStaff}>Add Staff</Button>
+                 </DialogFooter>
+               </DialogContent>
+             </Dialog>
           </div>
         </div>
 
@@ -180,6 +367,72 @@ export default function AdminStaff() {
             />
           </CardContent>
         </Card>
+         
+         {/* Edit Staff Dialog */}
+         <Dialog open={!!editingStaff} onOpenChange={() => setEditingStaff(null)}>
+           <DialogContent>
+             <DialogHeader>
+               <DialogTitle>Edit Staff Member</DialogTitle>
+               <DialogDescription>Update staff information</DialogDescription>
+             </DialogHeader>
+             <div className="grid gap-4 py-4">
+               <div className="space-y-2">
+                 <Label>Full Name</Label>
+                 <Input
+                   value={formData.name}
+                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                 />
+               </div>
+               <div className="space-y-2">
+                 <Label>Email</Label>
+                 <Input
+                   type="email"
+                   value={formData.email}
+                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                 />
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                   <Label>Department</Label>
+                   <Select 
+                     value={formData.department}
+                     onValueChange={(v) => setFormData({ ...formData, department: v })}
+                   >
+                     <SelectTrigger>
+                       <SelectValue />
+                     </SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="Cardiology">Cardiology</SelectItem>
+                       <SelectItem value="General Medicine">General Medicine</SelectItem>
+                       <SelectItem value="Laboratory">Laboratory</SelectItem>
+                       <SelectItem value="Pharmacy">Pharmacy</SelectItem>
+                       <SelectItem value="Front Desk">Front Desk</SelectItem>
+                       <SelectItem value="Administration">Administration</SelectItem>
+                     </SelectContent>
+                   </Select>
+                 </div>
+                 <div className="space-y-2">
+                   <Label>Phone</Label>
+                   <Input
+                     value={formData.phone}
+                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                   />
+                 </div>
+               </div>
+               <div className="space-y-2">
+                 <Label>Specialization</Label>
+                 <Input
+                   value={formData.specialization}
+                   onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                 />
+               </div>
+             </div>
+             <DialogFooter>
+               <Button variant="outline" onClick={() => setEditingStaff(null)}>Cancel</Button>
+               <Button onClick={handleEditStaff}>Save Changes</Button>
+             </DialogFooter>
+           </DialogContent>
+         </Dialog>
       </div>
     </DashboardLayout>
   );

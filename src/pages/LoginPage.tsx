@@ -9,9 +9,11 @@ import {
   FlaskConical, 
   Pill,
   Activity,
-  Shield
+   Shield,
+   Info
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface RoleOption {
   role: UserRole;
@@ -19,6 +21,8 @@ interface RoleOption {
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
+   email: string;
+   password: string;
 }
 
 const roleOptions: RoleOption[] = [
@@ -28,6 +32,8 @@ const roleOptions: RoleOption[] = [
     description: 'System settings, staff management, reports',
     icon: UserCog,
     color: 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/20',
+     email: 'admin@mediflex.com',
+     password: 'admin123',
   },
   {
     role: 'doctor',
@@ -35,6 +41,8 @@ const roleOptions: RoleOption[] = [
     description: 'Patient consultations, prescriptions, lab orders',
     icon: Stethoscope,
     color: 'bg-info/10 text-info border-info/20 hover:bg-info/20',
+     email: 'doctor@mediflex.com',
+     password: 'doctor123',
   },
   {
     role: 'nurse',
@@ -42,6 +50,8 @@ const roleOptions: RoleOption[] = [
     description: 'Patient vitals, care tasks, monitoring',
     icon: Heart,
     color: 'bg-accent/10 text-accent border-accent/20 hover:bg-accent/20',
+     email: 'nurse@mediflex.com',
+     password: 'nurse123',
   },
   {
     role: 'receptionist',
@@ -49,6 +59,8 @@ const roleOptions: RoleOption[] = [
     description: 'Check-in, appointments, billing status',
     icon: Users,
     color: 'bg-success/10 text-success border-success/20 hover:bg-success/20',
+     email: 'frontdesk@mediflex.com',
+     password: 'frontdesk123',
   },
   {
     role: 'lab',
@@ -56,6 +68,8 @@ const roleOptions: RoleOption[] = [
     description: 'Test requests, results, sample tracking',
     icon: FlaskConical,
     color: 'bg-warning/10 text-warning border-warning/20 hover:bg-warning/20',
+     email: 'lab@mediflex.com',
+     password: 'lab123',
   },
   {
     role: 'pharmacy',
@@ -63,6 +77,8 @@ const roleOptions: RoleOption[] = [
     description: 'Prescriptions, dispensing, inventory',
     icon: Pill,
     color: 'bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20',
+     email: 'pharmacy@mediflex.com',
+     password: 'pharmacy123',
   },
 ];
 
@@ -136,7 +152,33 @@ export default function LoginPage() {
             <p className="text-muted-foreground">Select your role to access the dashboard</p>
           </div>
 
-          <div className="grid gap-3">
+           {/* Demo Credentials Card */}
+           <Card className="mb-6 border-info/30 bg-info/5">
+             <CardHeader className="pb-2">
+               <CardTitle className="flex items-center gap-2 text-sm text-info">
+                 <Info className="h-4 w-4" />
+                 Demo Login Credentials
+               </CardTitle>
+             </CardHeader>
+             <CardContent className="pt-0">
+               <p className="text-xs text-muted-foreground mb-2">
+                 Click any role below to login. Demo credentials for each role:
+               </p>
+               <div className="grid grid-cols-2 gap-2 text-xs">
+                 {roleOptions.map((option) => (
+                   <div key={option.role} className="flex flex-col">
+                     <span className="font-medium capitalize">{option.label}:</span>
+                     <span className="text-muted-foreground">{option.email}</span>
+                   </div>
+                 ))}
+               </div>
+               <p className="text-xs text-muted-foreground mt-2">
+                 Password for all: <code className="bg-muted px-1 rounded">[role]123</code>
+               </p>
+             </CardContent>
+           </Card>
+ 
+           <div className="grid gap-3">
             {roleOptions.map((option) => (
               <button
                 key={option.role}

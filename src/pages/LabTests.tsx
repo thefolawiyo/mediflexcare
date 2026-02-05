@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { StatusBadge, getStatusVariant } from '@/components/ui/status-badge';
-import { mockLabTests } from '@/data/mockData';
+ import { mockLabTests as initialLabTests, mockPatients } from '@/data/mockData';
 import { LabTest } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,18 +17,116 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+ import {
+   Dialog,
+   DialogContent,
+   DialogDescription,
+   DialogHeader,
+   DialogTitle,
+   DialogTrigger,
+   DialogFooter,
+ } from '@/components/ui/dialog';
+ import { Label } from '@/components/ui/label';
+ import {
+   Select,
+   SelectContent,
+   SelectItem,
+   SelectTrigger,
+   SelectValue,
+ } from '@/components/ui/select';
+ import { Textarea } from '@/components/ui/textarea';
+ import { toast } from 'sonner';
 
 export default function LabTests() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+   const [labTests, setLabTests] = useState<LabTest[]>(initialLabTests);
+   const [isDialogOpen, setIsDialogOpen] = useState(false);
+   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
+   const [selectedTest, setSelectedTest] = useState<LabTest | null>(null);
+   const [results, setResults] = useState('');
+   const [formData, setFormData] = useState({
+     patientId: '',
+     testType: '',
+     priority: 'routine',
+   });
 
-  const filteredTests = mockLabTests.filter(test => {
+   const filteredTests = labTests.filter(test => {
     const matchesSearch = test.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       test.testType.toLowerCase().includes(searchQuery.toLowerCase());
     
     if (activeTab === 'all') return matchesSearch;
     return matchesSearch && test.status === activeTab;
   });
+ 
+   const handleStatusChange = (testId: string, newStatus: LabTest['status']) => {
+     setLabTests(labTests.map(test => {
+       if (test.id === testId) {
+         toast.success(`Test ${newStatus === 'in-progress' ? 'started' : 'completed'}`);
+         return { 
+           ...test, 
+           status: newStatus,
+           completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
+         };
+       }
+       return test;
+     }));
+   };
+ 
+   const handleAddTest = (e: React.FormEvent) => {
+     e.preventDefault();
+     if (!formData.patientId || !formData.testType) {
+       toast.error('Please fill in required fields');
+       return;
+     }
+ 
+     const patient = mockPatients.find(p => p.id === formData.patientId);
+     const newTest: LabTest = {
+       id: `L00${labTests.length + 1}`,
+       patientId: formData.patientId,
+       patientName: patient?.name || 'Unknown',
+       orderedBy: 'Dr. Sarah Chen',
+       testType: formData.testType,
+       status: 'pending',
+       priority: formData.priority as LabTest['priority'],
+       orderedAt: new Date().toISOString(),
+     };
+ 
+     setLabTests([newTest, ...labTests]);
+     setIsDialogOpen(false);
+     setFormData({ patientId: '', testType: '', priority: 'routine' });
+     toast.success('Lab test ordered successfully');
+   };
+ 
+   const handleEnterResults = () => {
+     if (!selectedTest || !results) {
+       toast.error('Please enter results');
+       return;
+     }
+ 
+     setLabTests(labTests.map(test => {
+       if (test.id === selectedTest.id) {
+         return { 
+           ...test, 
+           status: 'completed' as const,
+           results,
+           completedAt: new Date().toISOString(),
+         };
+       }
+       return test;
+     }));
+     
+     setResultsDialogOpen(false);
+     setSelectedTest(null);
+     setResults('');
+     toast.success('Results saved successfully');
+   };
+ 
+   const openResultsDialog = (test: LabTest) => {
+     setSelectedTest(test);
+     setResults(test.results || '');
+     setResultsDialogOpen(true);
+   };
 
   const columns: Column<LabTest>[] = [
     { 
@@ -74,13 +172,13 @@ export default function LabTests() {
       render: (_, row) => (
         <div className="flex gap-2">
           {row.status === 'pending' && (
-            <Button size="sm">Start Processing</Button>
+             <Button size="sm" onClick={() => handleStatusChange(row.id, 'in-progress')}>Start Processing</Button>
           )}
           {row.status === 'in-progress' && (
-            <Button size="sm" variant="outline">Enter Results</Button>
+             <Button size="sm" variant="outline" onClick={() => openResultsDialog(row)}>Enter Results</Button>
           )}
           {row.status === 'completed' && (
-            <Button size="sm" variant="ghost">View Results</Button>
+             <Button size="sm" variant="ghost" onClick={() => openResultsDialog(row)}>View Results</Button>
           )}
         </div>
       )
@@ -88,13 +186,13 @@ export default function LabTests() {
   ];
 
   const statusCounts = {
-    all: mockLabTests.length,
-    pending: mockLabTests.filter(t => t.status === 'pending').length,
-    'in-progress': mockLabTests.filter(t => t.status === 'in-progress').length,
-    completed: mockLabTests.filter(t => t.status === 'completed').length,
+     all: labTests.length,
+     pending: labTests.filter(t => t.status === 'pending').length,
+     'in-progress': labTests.filter(t => t.status === 'in-progress').length,
+     completed: labTests.filter(t => t.status === 'completed').length,
   };
 
-  const urgentCount = mockLabTests.filter(t => t.priority === 'stat' && t.status !== 'completed').length;
+   const urgentCount = labTests.filter(t => t.priority === 'stat' && t.status !== 'completed').length;
 
   return (
     <DashboardLayout 
@@ -173,10 +271,80 @@ export default function LabTests() {
             <Button variant="outline" size="icon">
               <Filter className="h-4 w-4" />
             </Button>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Test Order
-            </Button>
+             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+               <DialogTrigger asChild>
+                 <Button>
+                   <Plus className="h-4 w-4 mr-2" />
+                   New Test Order
+                 </Button>
+               </DialogTrigger>
+               <DialogContent>
+                 <DialogHeader>
+                   <DialogTitle>Order New Lab Test</DialogTitle>
+                   <DialogDescription>Create a new lab test order for a patient</DialogDescription>
+                 </DialogHeader>
+                 <form className="grid gap-4 py-4" onSubmit={handleAddTest}>
+                   <div className="space-y-2">
+                     <Label>Patient *</Label>
+                     <Select 
+                       value={formData.patientId}
+                       onValueChange={(v) => setFormData({ ...formData, patientId: v })}
+                     >
+                       <SelectTrigger>
+                         <SelectValue placeholder="Select patient" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         {mockPatients.map(patient => (
+                           <SelectItem key={patient.id} value={patient.id}>
+                             {patient.name}
+                           </SelectItem>
+                         ))}
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Test Type *</Label>
+                     <Select 
+                       value={formData.testType}
+                       onValueChange={(v) => setFormData({ ...formData, testType: v })}
+                     >
+                       <SelectTrigger>
+                         <SelectValue placeholder="Select test type" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="Complete Blood Count (CBC)">Complete Blood Count (CBC)</SelectItem>
+                         <SelectItem value="Lipid Panel">Lipid Panel</SelectItem>
+                         <SelectItem value="Cardiac Enzymes">Cardiac Enzymes</SelectItem>
+                         <SelectItem value="Troponin Test">Troponin Test</SelectItem>
+                         <SelectItem value="Basic Metabolic Panel">Basic Metabolic Panel</SelectItem>
+                         <SelectItem value="Liver Function Tests">Liver Function Tests</SelectItem>
+                         <SelectItem value="Urinalysis">Urinalysis</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Priority</Label>
+                     <Select 
+                       value={formData.priority}
+                       onValueChange={(v) => setFormData({ ...formData, priority: v })}
+                     >
+                       <SelectTrigger>
+                         <SelectValue placeholder="Select priority" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="routine">Routine</SelectItem>
+                         <SelectItem value="urgent">Urgent</SelectItem>
+                         <SelectItem value="stat">STAT</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                   <DialogFooter>
+                     <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                     <Button type="submit">Order Test</Button>
+                   </DialogFooter>
+                 </form>
+               </DialogContent>
+             </Dialog>
           </div>
         </div>
 
@@ -200,6 +368,38 @@ export default function LabTests() {
             </CardContent>
           </Tabs>
         </Card>
+         
+         {/* Results Dialog */}
+         <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
+           <DialogContent>
+             <DialogHeader>
+               <DialogTitle>
+                 {selectedTest?.status === 'completed' ? 'View Results' : 'Enter Results'}
+               </DialogTitle>
+               <DialogDescription>
+                 {selectedTest?.testType} for {selectedTest?.patientName}
+               </DialogDescription>
+             </DialogHeader>
+             <div className="space-y-4 py-4">
+               <div className="space-y-2">
+                 <Label>Results</Label>
+                 <Textarea
+                   value={results}
+                   onChange={(e) => setResults(e.target.value)}
+                   placeholder="Enter test results..."
+                   rows={6}
+                   readOnly={selectedTest?.status === 'completed'}
+                 />
+               </div>
+             </div>
+             <DialogFooter>
+               <Button variant="outline" onClick={() => setResultsDialogOpen(false)}>Close</Button>
+               {selectedTest?.status !== 'completed' && (
+                 <Button onClick={handleEnterResults}>Save Results</Button>
+               )}
+             </DialogFooter>
+           </DialogContent>
+         </Dialog>
       </div>
     </DashboardLayout>
   );

@@ -17,9 +17,12 @@ import {
 import { Appointment, LabTest, Prescription } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+ import { useNavigate } from 'react-router-dom';
+ import { toast } from 'sonner';
 
 export default function Dashboard() {
   const { user } = useAuth();
+   const navigate = useNavigate();
 
   const todayAppointments = mockAppointments.filter(a => a.date === '2024-12-20');
   const pendingLabTests = mockLabTests.filter(l => l.status === 'pending' || l.status === 'in-progress');
@@ -79,6 +82,42 @@ export default function Dashboard() {
     },
   ];
 
+   const handleQuickAction = (action: string) => {
+     switch (action) {
+       case 'check-in':
+         toast.info('Select a patient to check in');
+         navigate('/appointments');
+         break;
+       case 'appointment':
+         navigate('/appointments');
+         break;
+       case 'lab':
+         navigate('/lab');
+         break;
+       case 'prescription':
+         navigate('/pharmacy');
+         break;
+       default:
+         toast.info('Feature coming soon');
+     }
+   };
+ 
+   const handleViewAll = (section: string) => {
+     switch (section) {
+       case 'appointments':
+         navigate('/appointments');
+         break;
+       case 'lab':
+         navigate('/lab');
+         break;
+       case 'pharmacy':
+         navigate('/pharmacy');
+         break;
+       default:
+         toast.info('Navigation coming soon');
+     }
+   };
+ 
   const getRoleGreeting = () => {
     const greetings: Record<string, string> = {
       admin: 'Hospital Overview',
@@ -136,7 +175,7 @@ export default function Dashboard() {
           <Card className="card-interactive">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-lg font-semibold">Today's Appointments</CardTitle>
-              <Button variant="ghost" size="sm">View All</Button>
+               <Button variant="ghost" size="sm" onClick={() => handleViewAll('appointments')}>View All</Button>
             </CardHeader>
             <CardContent>
               <DataTable
@@ -154,19 +193,19 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <Button className="h-auto py-4 flex-col gap-2" variant="outline">
+                 <Button className="h-auto py-4 flex-col gap-2" variant="outline" onClick={() => handleQuickAction('check-in')}>
                   <UserCheck className="h-5 w-5" />
                   <span>Check-in Patient</span>
                 </Button>
-                <Button className="h-auto py-4 flex-col gap-2" variant="outline">
+                 <Button className="h-auto py-4 flex-col gap-2" variant="outline" onClick={() => handleQuickAction('appointment')}>
                   <Calendar className="h-5 w-5" />
                   <span>New Appointment</span>
                 </Button>
-                <Button className="h-auto py-4 flex-col gap-2" variant="outline">
+                 <Button className="h-auto py-4 flex-col gap-2" variant="outline" onClick={() => handleQuickAction('lab')}>
                   <FlaskConical className="h-5 w-5" />
                   <span>Order Lab Test</span>
                 </Button>
-                <Button className="h-auto py-4 flex-col gap-2" variant="outline">
+                 <Button className="h-auto py-4 flex-col gap-2" variant="outline" onClick={() => handleQuickAction('prescription')}>
                   <Pill className="h-5 w-5" />
                   <span>New Prescription</span>
                 </Button>
@@ -203,7 +242,7 @@ export default function Dashboard() {
           <Card className="card-interactive">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-lg font-semibold">Lab Queue</CardTitle>
-              <Button variant="ghost" size="sm">View All</Button>
+               <Button variant="ghost" size="sm" onClick={() => handleViewAll('lab')}>View All</Button>
             </CardHeader>
             <CardContent>
               <DataTable
@@ -217,7 +256,7 @@ export default function Dashboard() {
           <Card className="card-interactive">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-lg font-semibold">Pharmacy Queue</CardTitle>
-              <Button variant="ghost" size="sm">View All</Button>
+               <Button variant="ghost" size="sm" onClick={() => handleViewAll('pharmacy')}>View All</Button>
             </CardHeader>
             <CardContent>
               <DataTable

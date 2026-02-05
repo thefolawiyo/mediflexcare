@@ -14,9 +14,19 @@ import {
   Globe,
   Save
 } from 'lucide-react';
+ import { useState } from 'react';
+ import { toast } from 'sonner';
 
 export default function Settings() {
   const { user } = useAuth();
+   const [notifications, setNotifications] = useState({ email: true, appointments: true, labResults: true, system: true });
+   const [security, setSecurity] = useState({ twoFactor: false, sessionTimeout: true });
+   const [appearance, setAppearance] = useState({ compact: false, highContrast: false });
+ 
+   const handleSaveProfile = () => toast.success('Profile updated successfully');
+   const handleChangePhoto = () => toast.info('Photo upload coming soon');
+   const handleEnable2FA = () => { setSecurity({ ...security, twoFactor: true }); toast.success('Two-factor authentication enabled'); };
+   const handleChangePassword = () => toast.info('Password change dialog would open here');
 
   return (
     <DashboardLayout 
