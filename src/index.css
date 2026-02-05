@@ -125,7 +125,8 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "cv11", "ss01";
+     font-family: 'Rency', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+     font-feature-settings: "cv11", "ss01";
   }
 
   /* Accessibility: Focus states */

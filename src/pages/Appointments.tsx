@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { StatusBadge, getStatusVariant } from '@/components/ui/status-badge';
-import { mockAppointments, mockPatients } from '@/data/mockData';
+ import { mockAppointments as initialAppointments, mockPatients } from '@/data/mockData';
 import { Appointment } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,19 +34,74 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+ import { toast } from 'sonner';
 
 export default function Appointments() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+   const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
+   const [formData, setFormData] = useState({
+     patientId: '',
+     date: '',
+     time: '',
+     department: '',
+     type: '',
+     notes: '',
+   });
 
-  const filteredAppointments = mockAppointments.filter(apt => {
+   const filteredAppointments = appointments.filter(apt => {
     const matchesSearch = apt.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       apt.doctorName.toLowerCase().includes(searchQuery.toLowerCase());
     
     if (activeTab === 'all') return matchesSearch;
     return matchesSearch && apt.status === activeTab;
   });
+ 
+   const handleStatusChange = (appointmentId: string, newStatus: Appointment['status']) => {
+     setAppointments(appointments.map(apt => {
+       if (apt.id === appointmentId) {
+         toast.success(`Appointment ${newStatus === 'checked-in' ? 'checked in' : newStatus === 'in-progress' ? 'started' : 'completed'}`);
+         return { ...apt, status: newStatus };
+       }
+       return apt;
+     }));
+   };
+ 
+   const handleAddAppointment = (e: React.FormEvent) => {
+     e.preventDefault();
+     if (!formData.patientId || !formData.date || !formData.time) {
+       toast.error('Please fill in required fields');
+       return;
+     }
+ 
+     const patient = mockPatients.find(p => p.id === formData.patientId);
+     const newAppointment: Appointment = {
+       id: `A00${appointments.length + 1}`,
+       patientId: formData.patientId,
+       patientName: patient?.name || 'Unknown',
+       doctorId: '1',
+       doctorName: 'Dr. Sarah Chen',
+       department: formData.department || 'General',
+       date: formData.date,
+       time: formData.time,
+       status: 'scheduled',
+       type: (formData.type as Appointment['type']) || 'consultation',
+       notes: formData.notes || undefined,
+     };
+ 
+     setAppointments([newAppointment, ...appointments]);
+     setIsDialogOpen(false);
+     setFormData({
+       patientId: '',
+       date: '',
+       time: '',
+       department: '',
+       type: '',
+       notes: '',
+     });
+     toast.success('Appointment scheduled successfully');
+   };
 
   const columns: Column<Appointment>[] = [
     { 
@@ -109,13 +164,13 @@ export default function Appointments() {
       render: (_, row) => (
         <div className="flex gap-2">
           {row.status === 'scheduled' && (
-            <Button size="sm" variant="outline">Check In</Button>
+             <Button size="sm" variant="outline" onClick={() => handleStatusChange(row.id, 'checked-in')}>Check In</Button>
           )}
           {row.status === 'checked-in' && (
-            <Button size="sm">Start</Button>
+             <Button size="sm" onClick={() => handleStatusChange(row.id, 'in-progress')}>Start</Button>
           )}
           {row.status === 'in-progress' && (
-            <Button size="sm" variant="outline">Complete</Button>
+             <Button size="sm" variant="outline" onClick={() => handleStatusChange(row.id, 'completed')}>Complete</Button>
           )}
         </div>
       )
@@ -123,11 +178,11 @@ export default function Appointments() {
   ];
 
   const statusCounts = {
-    all: mockAppointments.length,
-    scheduled: mockAppointments.filter(a => a.status === 'scheduled').length,
-    'checked-in': mockAppointments.filter(a => a.status === 'checked-in').length,
-    'in-progress': mockAppointments.filter(a => a.status === 'in-progress').length,
-    completed: mockAppointments.filter(a => a.status === 'completed').length,
+     all: appointments.length,
+     scheduled: appointments.filter(a => a.status === 'scheduled').length,
+     'checked-in': appointments.filter(a => a.status === 'checked-in').length,
+     'in-progress': appointments.filter(a => a.status === 'in-progress').length,
+     completed: appointments.filter(a => a.status === 'completed').length,
   };
 
   return (
@@ -221,10 +276,13 @@ export default function Appointments() {
                     Create a new appointment for a patient.
                   </DialogDescription>
                 </DialogHeader>
-                <form className="grid gap-4 py-4">
+               <form className="grid gap-4 py-4" onSubmit={handleAddAppointment}>
                   <div className="space-y-2">
                     <Label htmlFor="patient">Patient</Label>
-                    <Select>
+                   <Select 
+                     value={formData.patientId}
+                     onValueChange={(v) => setFormData({ ...formData, patientId: v })}
+                   >
                       <SelectTrigger>
                         <SelectValue placeholder="Select patient" />
                       </SelectTrigger>
@@ -240,16 +298,29 @@ export default function Appointments() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="date">Date</Label>
-                      <Input id="date" type="date" />
+                     <Input 
+                       id="date" 
+                       type="date"
+                       value={formData.date}
+                       onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                     />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="time">Time</Label>
-                      <Input id="time" type="time" />
+                     <Input 
+                       id="time" 
+                       type="time"
+                       value={formData.time}
+                       onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                     />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="department">Department</Label>
-                    <Select>
+                   <Select
+                     value={formData.department}
+                     onValueChange={(v) => setFormData({ ...formData, department: v })}
+                   >
                       <SelectTrigger>
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
@@ -263,7 +334,10 @@ export default function Appointments() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="type">Appointment Type</Label>
-                    <Select>
+                   <Select
+                     value={formData.type}
+                     onValueChange={(v) => setFormData({ ...formData, type: v })}
+                   >
                       <SelectTrigger>
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
@@ -277,7 +351,12 @@ export default function Appointments() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="notes">Notes</Label>
-                    <Textarea id="notes" placeholder="Add any relevant notes..." />
+                   <Textarea 
+                     id="notes" 
+                     placeholder="Add any relevant notes..."
+                     value={formData.notes}
+                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                   />
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>

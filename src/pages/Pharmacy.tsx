@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { StatusBadge, getStatusVariant } from '@/components/ui/status-badge';
-import { mockPrescriptions } from '@/data/mockData';
+ import { mockPrescriptions as initialPrescriptions } from '@/data/mockData';
 import { Prescription } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,18 +16,47 @@ import {
   Package
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+ import {
+   Dialog,
+   DialogContent,
+   DialogDescription,
+   DialogHeader,
+   DialogTitle,
+   DialogFooter,
+ } from '@/components/ui/dialog';
+ import { toast } from 'sonner';
 
 export default function Pharmacy() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+   const [prescriptions, setPrescriptions] = useState<Prescription[]>(initialPrescriptions);
+   const [selectedRx, setSelectedRx] = useState<Prescription | null>(null);
 
-  const filteredPrescriptions = mockPrescriptions.filter(rx => {
+   const filteredPrescriptions = prescriptions.filter(rx => {
     const matchesSearch = rx.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rx.medication.toLowerCase().includes(searchQuery.toLowerCase());
     
     if (activeTab === 'all') return matchesSearch;
     return matchesSearch && rx.status === activeTab;
   });
+ 
+   const handleDispense = (rxId: string) => {
+     setPrescriptions(prescriptions.map(rx => {
+       if (rx.id === rxId) {
+         toast.success(`Prescription ${rx.id} dispensed successfully`);
+         return { 
+           ...rx, 
+           status: 'dispensed' as const,
+           dispensedAt: new Date().toISOString(),
+         };
+       }
+       return rx;
+     }));
+   };
+ 
+   const openDetailsDialog = (rx: Prescription) => {
+     setSelectedRx(rx);
+   };
 
   const columns: Column<Prescription>[] = [
     { 
@@ -74,10 +103,10 @@ export default function Pharmacy() {
       render: (_, row) => (
         <div className="flex gap-2">
           {row.status === 'pending' && (
-            <Button size="sm">Dispense</Button>
+             <Button size="sm" onClick={() => handleDispense(row.id)}>Dispense</Button>
           )}
           {row.status === 'dispensed' && (
-            <Button size="sm" variant="ghost">View Details</Button>
+             <Button size="sm" variant="ghost" onClick={() => openDetailsDialog(row)}>View Details</Button>
           )}
         </div>
       )
@@ -85,9 +114,9 @@ export default function Pharmacy() {
   ];
 
   const statusCounts = {
-    all: mockPrescriptions.length,
-    pending: mockPrescriptions.filter(p => p.status === 'pending').length,
-    dispensed: mockPrescriptions.filter(p => p.status === 'dispensed').length,
+     all: prescriptions.length,
+     pending: prescriptions.filter(p => p.status === 'pending').length,
+     dispensed: prescriptions.filter(p => p.status === 'dispensed').length,
   };
 
   return (
@@ -174,6 +203,63 @@ export default function Pharmacy() {
             </CardContent>
           </Tabs>
         </Card>
+         
+         {/* Details Dialog */}
+         <Dialog open={!!selectedRx} onOpenChange={() => setSelectedRx(null)}>
+           <DialogContent>
+             <DialogHeader>
+               <DialogTitle>Prescription Details</DialogTitle>
+               <DialogDescription>
+                 {selectedRx?.id} for {selectedRx?.patientName}
+               </DialogDescription>
+             </DialogHeader>
+             <div className="space-y-4 py-4">
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                   <p className="text-sm text-muted-foreground">Medication</p>
+                   <p className="font-medium">{selectedRx?.medication}</p>
+                 </div>
+                 <div>
+                   <p className="text-sm text-muted-foreground">Dosage</p>
+                   <p className="font-medium">{selectedRx?.dosage}</p>
+                 </div>
+                 <div>
+                   <p className="text-sm text-muted-foreground">Frequency</p>
+                   <p className="font-medium">{selectedRx?.frequency}</p>
+                 </div>
+                 <div>
+                   <p className="text-sm text-muted-foreground">Duration</p>
+                   <p className="font-medium">{selectedRx?.duration}</p>
+                 </div>
+                 <div>
+                   <p className="text-sm text-muted-foreground">Prescribed By</p>
+                   <p className="font-medium">{selectedRx?.prescribedBy}</p>
+                 </div>
+                 <div>
+                   <p className="text-sm text-muted-foreground">Status</p>
+                   <StatusBadge variant={getStatusVariant(selectedRx?.status || '')}>
+                     {selectedRx?.status}
+                   </StatusBadge>
+                 </div>
+               </div>
+               {selectedRx?.notes && (
+                 <div>
+                   <p className="text-sm text-muted-foreground">Notes</p>
+                   <p className="font-medium">{selectedRx.notes}</p>
+                 </div>
+               )}
+               {selectedRx?.dispensedAt && (
+                 <div>
+                   <p className="text-sm text-muted-foreground">Dispensed At</p>
+                   <p className="font-medium">{new Date(selectedRx.dispensedAt).toLocaleString()}</p>
+                 </div>
+               )}
+             </div>
+             <DialogFooter>
+               <Button onClick={() => setSelectedRx(null)}>Close</Button>
+             </DialogFooter>
+           </DialogContent>
+         </Dialog>
       </div>
     </DashboardLayout>
   );

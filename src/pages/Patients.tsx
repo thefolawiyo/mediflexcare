@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { StatusBadge, getStatusVariant } from '@/components/ui/status-badge';
-import { mockPatients } from '@/data/mockData';
+ import { mockPatients as initialPatients } from '@/data/mockData';
 import { Patient } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,17 +32,88 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+ import { toast } from 'sonner';
 
 export default function Patients() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+   const [patients, setPatients] = useState<Patient[]>(initialPatients);
+   const [formData, setFormData] = useState({
+     firstName: '',
+     lastName: '',
+     email: '',
+     phone: '',
+     dob: '',
+     gender: '',
+     bloodType: '',
+     emergency: '',
+     address: '',
+     insurance: '',
+     insuranceId: '',
+   });
 
-  const filteredPatients = mockPatients.filter(patient =>
+   const filteredPatients = patients.filter(patient =>
     patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     patient.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     patient.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
+ 
+   const handleAddPatient = (e: React.FormEvent) => {
+     e.preventDefault();
+     if (!formData.firstName || !formData.lastName || !formData.email) {
+       toast.error('Please fill in required fields');
+       return;
+     }
+ 
+     const newPatient: Patient = {
+       id: `P00${patients.length + 1}`,
+       name: `${formData.firstName} ${formData.lastName}`,
+       email: formData.email,
+       phone: formData.phone || '+1 (555) 000-0000',
+       dateOfBirth: formData.dob || '1990-01-01',
+       gender: (formData.gender as 'male' | 'female' | 'other') || 'other',
+       bloodType: formData.bloodType || undefined,
+       address: formData.address || 'Address not provided',
+       emergencyContact: formData.emergency || '+1 (555) 000-0000',
+       insuranceProvider: formData.insurance || undefined,
+       insuranceId: formData.insuranceId || undefined,
+       registeredAt: new Date().toISOString().split('T')[0],
+       status: 'active',
+     };
+ 
+     setPatients([newPatient, ...patients]);
+     setIsDialogOpen(false);
+     setFormData({
+       firstName: '',
+       lastName: '',
+       email: '',
+       phone: '',
+       dob: '',
+       gender: '',
+       bloodType: '',
+       emergency: '',
+       address: '',
+       insurance: '',
+       insuranceId: '',
+     });
+     toast.success('Patient registered successfully');
+   };
+ 
+   const handleExport = () => {
+     toast.success('Exporting patient data...', {
+       description: 'Your download will start shortly.',
+     });
+   };
+ 
+   const handleScheduleAppointment = () => {
+     toast.success('Redirecting to appointment scheduling...');
+     setSelectedPatient(null);
+   };
+ 
+   const handleViewHistory = () => {
+     toast.info('Medical history coming soon');
+   };
 
   const columns: Column<Patient>[] = [
     { 
@@ -100,7 +171,7 @@ export default function Patients() {
   return (
     <DashboardLayout 
       title="Patients" 
-      subtitle={`${mockPatients.length} registered patients`}
+       subtitle={`${patients.length} registered patients`}
     >
       <div className="space-y-6 animate-fade-in">
         {/* Actions Bar */}
@@ -118,7 +189,7 @@ export default function Patients() {
             <Button variant="outline" size="icon">
               <Filter className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon">
+             <Button variant="outline" size="icon" onClick={handleExport}>
               <Download className="h-4 w-4" />
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -135,35 +206,64 @@ export default function Patients() {
                     Enter patient information to create a new record.
                   </DialogDescription>
                 </DialogHeader>
-                <form className="grid gap-4 py-4">
+               <form className="grid gap-4 py-4" onSubmit={handleAddPatient}>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="firstName">First Name</Label>
-                      <Input id="firstName" placeholder="John" />
+                     <Input 
+                       id="firstName" 
+                       placeholder="John"
+                       value={formData.firstName}
+                       onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                     />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="lastName">Last Name</Label>
-                      <Input id="lastName" placeholder="Smith" />
+                     <Input 
+                       id="lastName" 
+                       placeholder="Smith"
+                       value={formData.lastName}
+                       onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                     />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" placeholder="john@example.com" />
+                     <Input 
+                       id="email" 
+                       type="email" 
+                       placeholder="john@example.com"
+                       value={formData.email}
+                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                     />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Phone</Label>
-                      <Input id="phone" placeholder="+1 (555) 000-0000" />
+                     <Input 
+                       id="phone" 
+                       placeholder="+1 (555) 000-0000"
+                       value={formData.phone}
+                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                     />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="dob">Date of Birth</Label>
-                      <Input id="dob" type="date" />
+                     <Input 
+                       id="dob" 
+                       type="date"
+                       value={formData.dob}
+                       onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                     />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="gender">Gender</Label>
-                      <Select>
+                     <Select 
+                       value={formData.gender}
+                       onValueChange={(v) => setFormData({ ...formData, gender: v })}
+                     >
                         <SelectTrigger>
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
@@ -178,7 +278,10 @@ export default function Patients() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="bloodType">Blood Type</Label>
-                      <Select>
+                     <Select
+                       value={formData.bloodType}
+                       onValueChange={(v) => setFormData({ ...formData, bloodType: v })}
+                     >
                         <SelectTrigger>
                           <SelectValue placeholder="Select blood type" />
                         </SelectTrigger>
@@ -191,21 +294,41 @@ export default function Patients() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="emergency">Emergency Contact</Label>
-                      <Input id="emergency" placeholder="+1 (555) 000-0000" />
+                     <Input 
+                       id="emergency" 
+                       placeholder="+1 (555) 000-0000"
+                       value={formData.emergency}
+                       onChange={(e) => setFormData({ ...formData, emergency: e.target.value })}
+                     />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="address">Address</Label>
-                    <Input id="address" placeholder="123 Main Street, City, State, ZIP" />
+                   <Input 
+                     id="address" 
+                     placeholder="123 Main Street, City, State, ZIP"
+                     value={formData.address}
+                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                   />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="insurance">Insurance Provider</Label>
-                      <Input id="insurance" placeholder="Provider name" />
+                     <Input 
+                       id="insurance" 
+                       placeholder="Provider name"
+                       value={formData.insurance}
+                       onChange={(e) => setFormData({ ...formData, insurance: e.target.value })}
+                     />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="insuranceId">Insurance ID</Label>
-                      <Input id="insuranceId" placeholder="Policy number" />
+                     <Input 
+                       id="insuranceId" 
+                       placeholder="Policy number"
+                       value={formData.insuranceId}
+                       onChange={(e) => setFormData({ ...formData, insuranceId: e.target.value })}
+                     />
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
@@ -288,8 +411,8 @@ export default function Patients() {
                 )}
 
                 <div className="flex gap-2 pt-4">
-                  <Button className="flex-1">Schedule Appointment</Button>
-                  <Button variant="outline" className="flex-1">View History</Button>
+                   <Button className="flex-1" onClick={handleScheduleAppointment}>Schedule Appointment</Button>
+                   <Button variant="outline" className="flex-1" onClick={handleViewHistory}>View History</Button>
                 </div>
               </div>
             </DialogContent>

@@ -6,6 +6,7 @@ type BadgeVariant =
   | 'warning' 
   | 'destructive' 
   | 'info'
+   | 'error'
   | 'outline';
 
 interface StatusBadgeProps {
@@ -21,6 +22,7 @@ const variantStyles: Record<BadgeVariant, string> = {
   warning: 'bg-warning/10 text-warning border-warning/20',
   destructive: 'bg-destructive/10 text-destructive border-destructive/20',
   info: 'bg-info/10 text-info border-info/20',
+   error: 'bg-destructive/10 text-destructive border-destructive/20',
   outline: 'bg-transparent border-border text-foreground',
 };
 
