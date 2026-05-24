@@ -57,7 +57,7 @@ export default function Appointments() {
   });
 
   const handleStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from('appointments').update({ status }).eq('id', id);
+    const { error } = await supabase.from('appointments').update({ status: status as any }).eq('id', id);
     if (error) return toast.error(error.message);
     toast.success(`Marked as ${status}`);
     load();
