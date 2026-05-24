@@ -1,419 +1,206 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { StatusBadge, getStatusVariant } from '@/components/ui/status-badge';
- import { mockPatients as initialPatients } from '@/data/mockData';
-import { Patient } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Search, 
-  Plus, 
-  Filter,
-  Download,
-  Mail,
-  Phone,
-  Calendar
-} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Search, Plus, Mail, Phone, Calendar } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
- import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+
+type Row = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  blood_type: string | null;
+  address: string | null;
+  emergency_contact: string | null;
+  insurance_provider: string | null;
+  insurance_id: string | null;
+  status: string;
+  registered_at: string;
+};
+
+const empty = {
+  firstName: '', lastName: '', email: '', phone: '', dob: '', gender: '',
+  bloodType: '', emergency: '', address: '', insurance: '', insuranceId: '',
+};
 
 export default function Patients() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selected, setSelected] = useState<Row | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-   const [patients, setPatients] = useState<Patient[]>(initialPatients);
-   const [formData, setFormData] = useState({
-     firstName: '',
-     lastName: '',
-     email: '',
-     phone: '',
-     dob: '',
-     gender: '',
-     bloodType: '',
-     emergency: '',
-     address: '',
-     insurance: '',
-     insuranceId: '',
-   });
+  const [form, setForm] = useState(empty);
 
-   const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    patient.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    patient.id.toLowerCase().includes(searchQuery.toLowerCase())
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*')
+      .order('registered_at', { ascending: false });
+    if (error) toast.error(error.message);
+    setRows((data as Row[]) ?? []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const filtered = rows.filter(r =>
+    r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (r.email ?? '').toLowerCase().includes(searchQuery.toLowerCase())
   );
- 
-   const handleAddPatient = (e: React.FormEvent) => {
-     e.preventDefault();
-     if (!formData.firstName || !formData.lastName || !formData.email) {
-       toast.error('Please fill in required fields');
-       return;
-     }
- 
-     const newPatient: Patient = {
-       id: `P00${patients.length + 1}`,
-       name: `${formData.firstName} ${formData.lastName}`,
-       email: formData.email,
-       phone: formData.phone || '+1 (555) 000-0000',
-       dateOfBirth: formData.dob || '1990-01-01',
-       gender: (formData.gender as 'male' | 'female' | 'other') || 'other',
-       bloodType: formData.bloodType || undefined,
-       address: formData.address || 'Address not provided',
-       emergencyContact: formData.emergency || '+1 (555) 000-0000',
-       insuranceProvider: formData.insurance || undefined,
-       insuranceId: formData.insuranceId || undefined,
-       registeredAt: new Date().toISOString().split('T')[0],
-       status: 'active',
-     };
- 
-     setPatients([newPatient, ...patients]);
-     setIsDialogOpen(false);
-     setFormData({
-       firstName: '',
-       lastName: '',
-       email: '',
-       phone: '',
-       dob: '',
-       gender: '',
-       bloodType: '',
-       emergency: '',
-       address: '',
-       insurance: '',
-       insuranceId: '',
-     });
-     toast.success('Patient registered successfully');
-   };
- 
-   const handleExport = () => {
-     toast.success('Exporting patient data...', {
-       description: 'Your download will start shortly.',
-     });
-   };
- 
-   const handleScheduleAppointment = () => {
-     toast.success('Redirecting to appointment scheduling...');
-     setSelectedPatient(null);
-   };
- 
-   const handleViewHistory = () => {
-     toast.info('Medical history coming soon');
-   };
 
-  const columns: Column<Patient>[] = [
-    { 
-      key: 'id', 
-      header: 'Patient ID',
-      className: 'font-mono text-sm',
-    },
-    { 
-      key: 'name', 
-      header: 'Name',
-      render: (_, row) => (
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.firstName || !form.lastName) return toast.error('First and last name required');
+    const { error } = await supabase.from('patients').insert({
+      name: `${form.firstName} ${form.lastName}`,
+      email: form.email || null,
+      phone: form.phone || null,
+      date_of_birth: form.dob || null,
+      gender: form.gender || null,
+      blood_type: form.bloodType || null,
+      address: form.address || null,
+      emergency_contact: form.emergency || null,
+      insurance_provider: form.insurance || null,
+      insurance_id: form.insuranceId || null,
+    });
+    if (error) return toast.error(error.message);
+    toast.success('Patient registered');
+    setIsDialogOpen(false);
+    setForm(empty);
+    load();
+  };
+
+  const columns: Column<Row>[] = [
+    { key: 'id', header: 'Patient ID', className: 'font-mono text-xs', render: (v) => String(v).slice(0, 8) },
+    {
+      key: 'name', header: 'Name',
+      render: (_, r) => (
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-sm font-medium text-primary">
-              {row.name.split(' ').map(n => n[0]).join('')}
-            </span>
+            <span className="text-sm font-medium text-primary">{r.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</span>
           </div>
           <div>
-            <p className="font-medium">{row.name}</p>
-            <p className="text-xs text-muted-foreground">{row.email}</p>
+            <p className="font-medium">{r.name}</p>
+            <p className="text-xs text-muted-foreground">{r.email}</p>
           </div>
         </div>
-      )
+      ),
     },
-    { 
-      key: 'phone', 
-      header: 'Phone',
-      render: (v) => <span className="text-sm">{v}</span>
+    { key: 'phone', header: 'Phone', render: (v) => v || '-' },
+    { key: 'date_of_birth', header: 'DOB', render: (v) => v ? new Date(v as string).toLocaleDateString() : '-' },
+    {
+      key: 'blood_type', header: 'Blood Type',
+      render: (v) => v ? <span className="inline-flex items-center justify-center h-7 w-10 rounded bg-destructive/10 text-destructive text-sm font-semibold">{v}</span> : '-',
     },
-    { 
-      key: 'dateOfBirth', 
-      header: 'Date of Birth',
-      render: (v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    },
-    { 
-      key: 'bloodType', 
-      header: 'Blood Type',
-      render: (v) => v ? (
-        <span className="inline-flex items-center justify-center h-7 w-10 rounded bg-destructive/10 text-destructive text-sm font-semibold">
-          {v}
-        </span>
-      ) : '-'
-    },
-    { 
-      key: 'status', 
-      header: 'Status',
-      render: (v) => (
-        <StatusBadge variant={getStatusVariant(v)}>
-          {v}
-        </StatusBadge>
-      )
-    },
+    { key: 'status', header: 'Status', render: (v) => <StatusBadge variant={getStatusVariant(v as string)}>{v}</StatusBadge> },
   ];
 
   return (
-    <DashboardLayout 
-      title="Patients" 
-       subtitle={`${patients.length} registered patients`}
-    >
+    <DashboardLayout title="Patients" subtitle={`${rows.length} registered patient${rows.length === 1 ? '' : 's'}`}>
       <div className="space-y-6 animate-fade-in">
-        {/* Actions Bar */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, email, or ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+            <Input placeholder="Search by name or email..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
-             <Button variant="outline" size="icon" onClick={handleExport}>
-              <Download className="h-4 w-4" />
-            </Button>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Patient
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Register New Patient</DialogTitle>
-                  <DialogDescription>
-                    Enter patient information to create a new record.
-                  </DialogDescription>
-                </DialogHeader>
-               <form className="grid gap-4 py-4" onSubmit={handleAddPatient}>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
-                     <Input 
-                       id="firstName" 
-                       placeholder="John"
-                       value={formData.firstName}
-                       onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                     />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                     <Input 
-                       id="lastName" 
-                       placeholder="Smith"
-                       value={formData.lastName}
-                       onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                     />
-                    </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" /> Add Patient</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Register New Patient</DialogTitle>
+                <DialogDescription>Enter patient information to create a new record.</DialogDescription>
+              </DialogHeader>
+              <form className="grid gap-4 py-4" onSubmit={handleAdd}>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>First Name *</Label><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Last Name *</Label><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Date of Birth</Label><Input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Gender</Label>
+                    <Select value={form.gender} onValueChange={(v) => setForm({ ...form, gender: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                     <Input 
-                       id="email" 
-                       type="email" 
-                       placeholder="john@example.com"
-                       value={formData.email}
-                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                     />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
-                     <Input 
-                       id="phone" 
-                       placeholder="+1 (555) 000-0000"
-                       value={formData.phone}
-                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                     />
-                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Blood Type</Label>
+                    <Select value={form.bloodType} onValueChange={(v) => setForm({ ...form, bloodType: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>{['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                    </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="dob">Date of Birth</Label>
-                     <Input 
-                       id="dob" 
-                       type="date"
-                       value={formData.dob}
-                       onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                     />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="gender">Gender</Label>
-                     <Select 
-                       value={formData.gender}
-                       onValueChange={(v) => setFormData({ ...formData, gender: v })}
-                     >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="bloodType">Blood Type</Label>
-                     <Select
-                       value={formData.bloodType}
-                       onValueChange={(v) => setFormData({ ...formData, bloodType: v })}
-                     >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select blood type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(type => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="emergency">Emergency Contact</Label>
-                     <Input 
-                       id="emergency" 
-                       placeholder="+1 (555) 000-0000"
-                       value={formData.emergency}
-                       onChange={(e) => setFormData({ ...formData, emergency: e.target.value })}
-                     />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                   <Input 
-                     id="address" 
-                     placeholder="123 Main Street, City, State, ZIP"
-                     value={formData.address}
-                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                   />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="insurance">Insurance Provider</Label>
-                     <Input 
-                       id="insurance" 
-                       placeholder="Provider name"
-                       value={formData.insurance}
-                       onChange={(e) => setFormData({ ...formData, insurance: e.target.value })}
-                     />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="insuranceId">Insurance ID</Label>
-                     <Input 
-                       id="insuranceId" 
-                       placeholder="Policy number"
-                       value={formData.insuranceId}
-                       onChange={(e) => setFormData({ ...formData, insuranceId: e.target.value })}
-                     />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit">Register Patient</Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
+                  <div className="space-y-2"><Label>Emergency Contact</Label><Input value={form.emergency} onChange={(e) => setForm({ ...form, emergency: e.target.value })} /></div>
+                </div>
+                <div className="space-y-2"><Label>Address</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Insurance Provider</Label><Input value={form.insurance} onChange={(e) => setForm({ ...form, insurance: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Insurance ID</Label><Input value={form.insuranceId} onChange={(e) => setForm({ ...form, insuranceId: e.target.value })} /></div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                  <Button type="submit">Register Patient</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        {/* Patient Table */}
         <Card>
           <CardContent className="p-0">
             <DataTable
-              data={filteredPatients}
+              data={filtered}
               columns={columns}
-              onRowClick={(patient) => setSelectedPatient(patient)}
-              emptyMessage="No patients found"
+              onRowClick={(r) => setSelected(r)}
+              emptyMessage={loading ? 'Loading...' : 'No patients found'}
             />
           </CardContent>
         </Card>
 
-        {/* Patient Detail Sidebar */}
-        {selectedPatient && (
-          <Dialog open={!!selectedPatient} onOpenChange={() => setSelectedPatient(null)}>
+        {selected && (
+          <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
             <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Patient Details</DialogTitle>
-              </DialogHeader>
+              <DialogHeader><DialogTitle>Patient Details</DialogTitle></DialogHeader>
               <div className="space-y-6">
                 <div className="flex items-center gap-4">
                   <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-xl font-semibold text-primary">
-                      {selectedPatient.name.split(' ').map(n => n[0]).join('')}
-                    </span>
+                    <span className="text-xl font-semibold text-primary">{selected.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</span>
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold">{selectedPatient.name}</h3>
-                    <p className="text-sm text-muted-foreground">ID: {selectedPatient.id}</p>
-                    <StatusBadge variant={getStatusVariant(selectedPatient.status)} className="mt-1">
-                      {selectedPatient.status}
-                    </StatusBadge>
+                    <h3 className="text-xl font-semibold">{selected.name}</h3>
+                    <StatusBadge variant={getStatusVariant(selected.status)} className="mt-1">{selected.status}</StatusBadge>
                   </div>
                 </div>
-
-                <div className="grid gap-4">
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{selectedPatient.email}</span>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{selectedPatient.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">
-                      DOB: {new Date(selectedPatient.dateOfBirth).toLocaleDateString()}
-                      {selectedPatient.bloodType && ` • Blood Type: ${selectedPatient.bloodType}`}
-                    </span>
-                  </div>
+                <div className="grid gap-3">
+                  {selected.email && <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"><Mail className="h-4 w-4 text-muted-foreground" /><span className="text-sm">{selected.email}</span></div>}
+                  {selected.phone && <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"><Phone className="h-4 w-4 text-muted-foreground" /><span className="text-sm">{selected.phone}</span></div>}
+                  {selected.date_of_birth && <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"><Calendar className="h-4 w-4 text-muted-foreground" /><span className="text-sm">DOB: {new Date(selected.date_of_birth).toLocaleDateString()}{selected.blood_type && ` • Blood: ${selected.blood_type}`}</span></div>}
                 </div>
-
-                <div className="pt-4 border-t">
-                  <h4 className="text-sm font-medium mb-2">Address</h4>
-                  <p className="text-sm text-muted-foreground">{selectedPatient.address}</p>
-                </div>
-
-                {selectedPatient.insuranceProvider && (
-                  <div className="pt-4 border-t">
-                    <h4 className="text-sm font-medium mb-2">Insurance</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedPatient.insuranceProvider} • {selectedPatient.insuranceId}
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-4">
-                   <Button className="flex-1" onClick={handleScheduleAppointment}>Schedule Appointment</Button>
-                   <Button variant="outline" className="flex-1" onClick={handleViewHistory}>View History</Button>
-                </div>
+                {selected.address && <div className="pt-4 border-t"><h4 className="text-sm font-medium mb-1">Address</h4><p className="text-sm text-muted-foreground">{selected.address}</p></div>}
+                {selected.insurance_provider && <div className="pt-4 border-t"><h4 className="text-sm font-medium mb-1">Insurance</h4><p className="text-sm text-muted-foreground">{selected.insurance_provider} • {selected.insurance_id}</p></div>}
               </div>
             </DialogContent>
           </Dialog>

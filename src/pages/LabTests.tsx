@@ -1,405 +1,218 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { StatusBadge, getStatusVariant } from '@/components/ui/status-badge';
- import { mockLabTests as initialLabTests, mockPatients } from '@/data/mockData';
-import { LabTest } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Search, 
-  Plus, 
-  Filter,
-  FlaskConical,
-  Clock,
-  CheckCircle,
-  AlertTriangle
-} from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
- import {
-   Dialog,
-   DialogContent,
-   DialogDescription,
-   DialogHeader,
-   DialogTitle,
-   DialogTrigger,
-   DialogFooter,
- } from '@/components/ui/dialog';
- import { Label } from '@/components/ui/label';
- import {
-   Select,
-   SelectContent,
-   SelectItem,
-   SelectTrigger,
-   SelectValue,
- } from '@/components/ui/select';
- import { Textarea } from '@/components/ui/textarea';
- import { toast } from 'sonner';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Search, Plus, FlaskConical, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+
+type Row = {
+  id: string;
+  patient_id: string;
+  test_type: string;
+  ordered_by_name: string | null;
+  status: string;
+  priority: string;
+  ordered_at: string;
+  completed_at: string | null;
+  results: string | null;
+  patients?: { name: string } | null;
+};
 
 export default function LabTests() {
+  const { user } = useAuth();
+  const [rows, setRows] = useState<Row[]>([]);
+  const [patients, setPatients] = useState<{ id: string; name: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
-   const [labTests, setLabTests] = useState<LabTest[]>(initialLabTests);
-   const [isDialogOpen, setIsDialogOpen] = useState(false);
-   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
-   const [selectedTest, setSelectedTest] = useState<LabTest | null>(null);
-   const [results, setResults] = useState('');
-   const [formData, setFormData] = useState({
-     patientId: '',
-     testType: '',
-     priority: 'routine',
-   });
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selected, setSelected] = useState<Row | null>(null);
+  const [resultsText, setResultsText] = useState('');
+  const [form, setForm] = useState({ patient_id: '', test_type: '', priority: 'routine' });
 
-   const filteredTests = labTests.filter(test => {
-    const matchesSearch = test.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      test.testType.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    if (activeTab === 'all') return matchesSearch;
-    return matchesSearch && test.status === activeTab;
+  const load = async () => {
+    const [{ data: t }, { data: p }] = await Promise.all([
+      supabase.from('lab_tests').select('*, patients(name)').order('ordered_at', { ascending: false }),
+      supabase.from('patients').select('id, name').order('name'),
+    ]);
+    setRows((t as Row[]) ?? []);
+    setPatients((p as any) ?? []);
+  };
+  useEffect(() => { load(); }, []);
+
+  const filtered = rows.filter(t => {
+    const m = (t.patients?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.test_type.toLowerCase().includes(searchQuery.toLowerCase());
+    if (activeTab === 'all') return m;
+    return m && t.status === activeTab;
   });
- 
-   const handleStatusChange = (testId: string, newStatus: LabTest['status']) => {
-     setLabTests(labTests.map(test => {
-       if (test.id === testId) {
-         toast.success(`Test ${newStatus === 'in-progress' ? 'started' : 'completed'}`);
-         return { 
-           ...test, 
-           status: newStatus,
-           completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
-         };
-       }
-       return test;
-     }));
-   };
- 
-   const handleAddTest = (e: React.FormEvent) => {
-     e.preventDefault();
-     if (!formData.patientId || !formData.testType) {
-       toast.error('Please fill in required fields');
-       return;
-     }
- 
-     const patient = mockPatients.find(p => p.id === formData.patientId);
-     const newTest: LabTest = {
-       id: `L00${labTests.length + 1}`,
-       patientId: formData.patientId,
-       patientName: patient?.name || 'Unknown',
-       orderedBy: 'Dr. Sarah Chen',
-       testType: formData.testType,
-       status: 'pending',
-       priority: formData.priority as LabTest['priority'],
-       orderedAt: new Date().toISOString(),
-     };
- 
-     setLabTests([newTest, ...labTests]);
-     setIsDialogOpen(false);
-     setFormData({ patientId: '', testType: '', priority: 'routine' });
-     toast.success('Lab test ordered successfully');
-   };
- 
-   const handleEnterResults = () => {
-     if (!selectedTest || !results) {
-       toast.error('Please enter results');
-       return;
-     }
- 
-     setLabTests(labTests.map(test => {
-       if (test.id === selectedTest.id) {
-         return { 
-           ...test, 
-           status: 'completed' as const,
-           results,
-           completedAt: new Date().toISOString(),
-         };
-       }
-       return test;
-     }));
-     
-     setResultsDialogOpen(false);
-     setSelectedTest(null);
-     setResults('');
-     toast.success('Results saved successfully');
-   };
- 
-   const openResultsDialog = (test: LabTest) => {
-     setSelectedTest(test);
-     setResults(test.results || '');
-     setResultsDialogOpen(true);
-   };
 
-  const columns: Column<LabTest>[] = [
-    { 
-      key: 'id', 
-      header: 'Test ID',
-      className: 'font-mono text-sm',
-    },
-    { 
-      key: 'patientName', 
-      header: 'Patient',
-      render: (v) => <span className="font-medium">{v}</span>
-    },
-    { 
-      key: 'testType', 
-      header: 'Test Type',
-    },
-    { 
-      key: 'orderedBy', 
-      header: 'Ordered By',
-      render: (v) => <span className="text-sm text-muted-foreground">{v}</span>
-    },
-    { 
-      key: 'priority', 
-      header: 'Priority',
-      render: (v) => (
-        <StatusBadge variant={getStatusVariant(v)} pulse={v === 'stat'}>
-          {v.toUpperCase()}
-        </StatusBadge>
-      )
-    },
-    { 
-      key: 'status', 
-      header: 'Status',
-      render: (v) => (
-        <StatusBadge variant={getStatusVariant(v)}>
-          {v.replace('-', ' ')}
-        </StatusBadge>
-      )
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (_, row) => (
-        <div className="flex gap-2">
-          {row.status === 'pending' && (
-             <Button size="sm" onClick={() => handleStatusChange(row.id, 'in-progress')}>Start Processing</Button>
-          )}
-          {row.status === 'in-progress' && (
-             <Button size="sm" variant="outline" onClick={() => openResultsDialog(row)}>Enter Results</Button>
-          )}
-          {row.status === 'completed' && (
-             <Button size="sm" variant="ghost" onClick={() => openResultsDialog(row)}>View Results</Button>
-          )}
-        </div>
-      )
-    }
-  ];
-
-  const statusCounts = {
-     all: labTests.length,
-     pending: labTests.filter(t => t.status === 'pending').length,
-     'in-progress': labTests.filter(t => t.status === 'in-progress').length,
-     completed: labTests.filter(t => t.status === 'completed').length,
+  const updateStatus = async (id: string, status: string) => {
+    const patch: any = { status };
+    if (status === 'completed') patch.completed_at = new Date().toISOString();
+    const { error } = await supabase.from('lab_tests').update(patch).eq('id', id);
+    if (error) return toast.error(error.message);
+    toast.success(`Test ${status}`);
+    load();
   };
 
-   const urgentCount = labTests.filter(t => t.priority === 'stat' && t.status !== 'completed').length;
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.patient_id || !form.test_type) return toast.error('Patient and test type required');
+    const { error } = await supabase.from('lab_tests').insert({
+      patient_id: form.patient_id,
+      test_type: form.test_type,
+      priority: form.priority as any,
+      ordered_by: user?.id ?? null,
+      ordered_by_name: user?.name ?? null,
+    });
+    if (error) return toast.error(error.message);
+    toast.success('Lab test ordered');
+    setIsDialogOpen(false);
+    setForm({ patient_id: '', test_type: '', priority: 'routine' });
+    load();
+  };
+
+  const saveResults = async () => {
+    if (!selected || !resultsText) return toast.error('Enter results');
+    const { error } = await supabase.from('lab_tests').update({
+      results: resultsText, status: 'completed', completed_at: new Date().toISOString(),
+    }).eq('id', selected.id);
+    if (error) return toast.error(error.message);
+    toast.success('Results saved');
+    setSelected(null);
+    setResultsText('');
+    load();
+  };
+
+  const columns: Column<Row>[] = [
+    { key: 'patients', header: 'Patient', render: (_, r) => <span className="font-medium">{r.patients?.name || '—'}</span> },
+    { key: 'test_type', header: 'Test Type' },
+    { key: 'ordered_by_name', header: 'Ordered By', render: (v) => <span className="text-sm text-muted-foreground">{v || '—'}</span> },
+    { key: 'priority', header: 'Priority', render: (v) => <StatusBadge variant={getStatusVariant(v as string)} pulse={v === 'stat'}>{(v as string).toUpperCase()}</StatusBadge> },
+    { key: 'status', header: 'Status', render: (v) => <StatusBadge variant={getStatusVariant(v as string)}>{(v as string).replace('-', ' ')}</StatusBadge> },
+    { key: 'actions', header: 'Actions', render: (_, r) => (
+      <div className="flex gap-2">
+        {r.status === 'pending' && <Button size="sm" onClick={() => updateStatus(r.id, 'in-progress')}>Start</Button>}
+        {r.status === 'in-progress' && <Button size="sm" variant="outline" onClick={() => { setSelected(r); setResultsText(r.results ?? ''); }}>Enter Results</Button>}
+        {r.status === 'completed' && <Button size="sm" variant="ghost" onClick={() => { setSelected(r); setResultsText(r.results ?? ''); }}>View</Button>}
+      </div>
+    )},
+  ];
+
+  const counts = {
+    all: rows.length,
+    pending: rows.filter(r => r.status === 'pending').length,
+    'in-progress': rows.filter(r => r.status === 'in-progress').length,
+    completed: rows.filter(r => r.status === 'completed').length,
+  };
+  const urgent = rows.filter(r => r.priority === 'stat' && r.status !== 'completed').length;
 
   return (
-    <DashboardLayout 
-      title="Laboratory" 
-      subtitle="Manage lab test requests and results"
-    >
+    <DashboardLayout title="Laboratory" subtitle="Manage lab test requests and results">
       <div className="space-y-6 animate-fade-in">
-        {/* Quick Stats */}
         <div className="grid gap-4 md:grid-cols-4">
-          <Card className="bg-warning/5 border-warning/20">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-warning/10 flex items-center justify-center">
-                  <Clock className="h-5 w-5 text-warning" />
+          {[
+            { label: 'Pending', value: counts.pending, icon: Clock, color: 'warning' },
+            { label: 'Processing', value: counts['in-progress'], icon: FlaskConical, color: 'info' },
+            { label: 'Completed', value: counts.completed, icon: CheckCircle, color: 'success' },
+            { label: 'Urgent (STAT)', value: urgent, icon: AlertTriangle, color: 'destructive' },
+          ].map((s) => (
+            <Card key={s.label} className={`bg-${s.color}/5 border-${s.color}/20`}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`h-10 w-10 rounded-lg bg-${s.color}/10 flex items-center justify-center`}><s.icon className={`h-5 w-5 text-${s.color}`} /></div>
+                  <div><p className="text-2xl font-bold">{s.value}</p><p className="text-sm text-muted-foreground">{s.label}</p></div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{statusCounts.pending}</p>
-                  <p className="text-sm text-muted-foreground">Pending</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-info/5 border-info/20">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-info/10 flex items-center justify-center">
-                  <FlaskConical className="h-5 w-5 text-info" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{statusCounts['in-progress']}</p>
-                  <p className="text-sm text-muted-foreground">Processing</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-success/5 border-success/20">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-success/10 flex items-center justify-center">
-                  <CheckCircle className="h-5 w-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{statusCounts.completed}</p>
-                  <p className="text-sm text-muted-foreground">Completed</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-destructive/5 border-destructive/20">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                  <AlertTriangle className="h-5 w-5 text-destructive" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{urgentCount}</p>
-                  <p className="text-sm text-muted-foreground">Urgent (STAT)</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* Actions Bar */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by patient or test type..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+            <Input placeholder="Search by patient or test type..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
-             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-               <DialogTrigger asChild>
-                 <Button>
-                   <Plus className="h-4 w-4 mr-2" />
-                   New Test Order
-                 </Button>
-               </DialogTrigger>
-               <DialogContent>
-                 <DialogHeader>
-                   <DialogTitle>Order New Lab Test</DialogTitle>
-                   <DialogDescription>Create a new lab test order for a patient</DialogDescription>
-                 </DialogHeader>
-                 <form className="grid gap-4 py-4" onSubmit={handleAddTest}>
-                   <div className="space-y-2">
-                     <Label>Patient *</Label>
-                     <Select 
-                       value={formData.patientId}
-                       onValueChange={(v) => setFormData({ ...formData, patientId: v })}
-                     >
-                       <SelectTrigger>
-                         <SelectValue placeholder="Select patient" />
-                       </SelectTrigger>
-                       <SelectContent>
-                         {mockPatients.map(patient => (
-                           <SelectItem key={patient.id} value={patient.id}>
-                             {patient.name}
-                           </SelectItem>
-                         ))}
-                       </SelectContent>
-                     </Select>
-                   </div>
-                   <div className="space-y-2">
-                     <Label>Test Type *</Label>
-                     <Select 
-                       value={formData.testType}
-                       onValueChange={(v) => setFormData({ ...formData, testType: v })}
-                     >
-                       <SelectTrigger>
-                         <SelectValue placeholder="Select test type" />
-                       </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="Complete Blood Count (CBC)">Complete Blood Count (CBC)</SelectItem>
-                         <SelectItem value="Lipid Panel">Lipid Panel</SelectItem>
-                         <SelectItem value="Cardiac Enzymes">Cardiac Enzymes</SelectItem>
-                         <SelectItem value="Troponin Test">Troponin Test</SelectItem>
-                         <SelectItem value="Basic Metabolic Panel">Basic Metabolic Panel</SelectItem>
-                         <SelectItem value="Liver Function Tests">Liver Function Tests</SelectItem>
-                         <SelectItem value="Urinalysis">Urinalysis</SelectItem>
-                       </SelectContent>
-                     </Select>
-                   </div>
-                   <div className="space-y-2">
-                     <Label>Priority</Label>
-                     <Select 
-                       value={formData.priority}
-                       onValueChange={(v) => setFormData({ ...formData, priority: v })}
-                     >
-                       <SelectTrigger>
-                         <SelectValue placeholder="Select priority" />
-                       </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="routine">Routine</SelectItem>
-                         <SelectItem value="urgent">Urgent</SelectItem>
-                         <SelectItem value="stat">STAT</SelectItem>
-                       </SelectContent>
-                     </Select>
-                   </div>
-                   <DialogFooter>
-                     <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                     <Button type="submit">Order Test</Button>
-                   </DialogFooter>
-                 </form>
-               </DialogContent>
-             </Dialog>
-          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" /> New Test Order</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Order New Lab Test</DialogTitle><DialogDescription>Create a new lab test order.</DialogDescription></DialogHeader>
+              <form className="grid gap-4 py-4" onSubmit={handleAdd}>
+                <div className="space-y-2"><Label>Patient *</Label>
+                  <Select value={form.patient_id} onValueChange={(v) => setForm({ ...form, patient_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
+                    <SelectContent>{patients.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>Test Type *</Label>
+                  <Select value={form.test_type} onValueChange={(v) => setForm({ ...form, test_type: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      {['Complete Blood Count (CBC)','Lipid Panel','Cardiac Enzymes','Troponin Test','Basic Metabolic Panel','Liver Function Tests','Urinalysis'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>Priority</Label>
+                  <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="routine">Routine</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="stat">STAT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                  <Button type="submit">Order Test</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        {/* Tabs & Table */}
         <Card>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <CardHeader className="pb-0">
               <TabsList>
-                <TabsTrigger value="all">All ({statusCounts.all})</TabsTrigger>
-                <TabsTrigger value="pending">Pending ({statusCounts.pending})</TabsTrigger>
-                <TabsTrigger value="in-progress">Processing ({statusCounts['in-progress']})</TabsTrigger>
-                <TabsTrigger value="completed">Completed ({statusCounts.completed})</TabsTrigger>
+                <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
+                <TabsTrigger value="pending">Pending ({counts.pending})</TabsTrigger>
+                <TabsTrigger value="in-progress">Processing ({counts['in-progress']})</TabsTrigger>
+                <TabsTrigger value="completed">Completed ({counts.completed})</TabsTrigger>
               </TabsList>
             </CardHeader>
             <CardContent className="p-0 pt-4">
-              <DataTable
-                data={filteredTests}
-                columns={columns}
-                emptyMessage="No lab tests found"
-              />
+              <DataTable data={filtered} columns={columns} emptyMessage="No lab tests found" />
             </CardContent>
           </Tabs>
         </Card>
-         
-         {/* Results Dialog */}
-         <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
-           <DialogContent>
-             <DialogHeader>
-               <DialogTitle>
-                 {selectedTest?.status === 'completed' ? 'View Results' : 'Enter Results'}
-               </DialogTitle>
-               <DialogDescription>
-                 {selectedTest?.testType} for {selectedTest?.patientName}
-               </DialogDescription>
-             </DialogHeader>
-             <div className="space-y-4 py-4">
-               <div className="space-y-2">
-                 <Label>Results</Label>
-                 <Textarea
-                   value={results}
-                   onChange={(e) => setResults(e.target.value)}
-                   placeholder="Enter test results..."
-                   rows={6}
-                   readOnly={selectedTest?.status === 'completed'}
-                 />
-               </div>
-             </div>
-             <DialogFooter>
-               <Button variant="outline" onClick={() => setResultsDialogOpen(false)}>Close</Button>
-               {selectedTest?.status !== 'completed' && (
-                 <Button onClick={handleEnterResults}>Save Results</Button>
-               )}
-             </DialogFooter>
-           </DialogContent>
-         </Dialog>
+
+        <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{selected?.status === 'completed' ? 'View Results' : 'Enter Results'}</DialogTitle>
+              <DialogDescription>{selected?.test_type} for {selected?.patients?.name}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-4">
+              <Label>Results</Label>
+              <Textarea rows={6} value={resultsText} onChange={(e) => setResultsText(e.target.value)} readOnly={selected?.status === 'completed'} />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
+              {selected?.status !== 'completed' && <Button onClick={saveResults}>Save Results</Button>}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

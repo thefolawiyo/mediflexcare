@@ -1,101 +1,70 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserRole } from '@/types';
-import { 
-  Stethoscope, 
-  Heart, 
-  UserCog, 
-  Users, 
-  FlaskConical, 
-  Pill,
-  Activity,
-   Shield,
-   Info
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
- import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { supabase } from '@/integrations/supabase/client';
+import { Activity, Shield, Loader2, Info } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 
-interface RoleOption {
-  role: UserRole;
-  label: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-   email: string;
-   password: string;
-}
-
-const roleOptions: RoleOption[] = [
-  {
-    role: 'admin',
-    label: 'Administrator',
-    description: 'System settings, staff management, reports',
-    icon: UserCog,
-    color: 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/20',
-     email: 'admin@mediflex.com',
-     password: 'admin123',
-  },
-  {
-    role: 'doctor',
-    label: 'Doctor',
-    description: 'Patient consultations, prescriptions, lab orders',
-    icon: Stethoscope,
-    color: 'bg-info/10 text-info border-info/20 hover:bg-info/20',
-     email: 'doctor@mediflex.com',
-     password: 'doctor123',
-  },
-  {
-    role: 'nurse',
-    label: 'Nurse',
-    description: 'Patient vitals, care tasks, monitoring',
-    icon: Heart,
-    color: 'bg-accent/10 text-accent border-accent/20 hover:bg-accent/20',
-     email: 'nurse@mediflex.com',
-     password: 'nurse123',
-  },
-  {
-    role: 'receptionist',
-    label: 'Front Desk',
-    description: 'Check-in, appointments, billing status',
-    icon: Users,
-    color: 'bg-success/10 text-success border-success/20 hover:bg-success/20',
-     email: 'frontdesk@mediflex.com',
-     password: 'frontdesk123',
-  },
-  {
-    role: 'lab',
-    label: 'Lab Staff',
-    description: 'Test requests, results, sample tracking',
-    icon: FlaskConical,
-    color: 'bg-warning/10 text-warning border-warning/20 hover:bg-warning/20',
-     email: 'lab@mediflex.com',
-     password: 'lab123',
-  },
-  {
-    role: 'pharmacy',
-    label: 'Pharmacy',
-    description: 'Prescriptions, dispensing, inventory',
-    icon: Pill,
-    color: 'bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20',
-     email: 'pharmacy@mediflex.com',
-     password: 'pharmacy123',
-  },
+const demoAccounts = [
+  { label: 'Administrator', email: 'admin@mediflex.com', password: 'admin123' },
+  { label: 'Doctor', email: 'doctor@mediflex.com', password: 'doctor123' },
+  { label: 'Nurse', email: 'nurse@mediflex.com', password: 'nurse123' },
+  { label: 'Front Desk', email: 'frontdesk@mediflex.com', password: 'frontdesk123' },
+  { label: 'Lab Staff', email: 'lab@mediflex.com', password: 'lab123' },
+  { label: 'Pharmacy', email: 'pharmacy@mediflex.com', password: 'pharmacy123' },
+  { label: 'Patient', email: 'patient@mediflex.com', password: 'patient123' },
 ];
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { signIn, signUp } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
 
-  const handleRoleSelect = (role: UserRole) => {
-    login(role);
+  const handleLogin = async (e: React.FormEvent, overrideEmail?: string, overridePassword?: string) => {
+    e?.preventDefault?.();
+    const em = overrideEmail ?? email;
+    const pw = overridePassword ?? password;
+    if (!em || !pw) return toast.error('Enter email and password');
+    setLoading(true);
+    let { error } = await signIn(em, pw);
+
+    // If a demo account doesn't exist yet, seed it then retry once.
+    if (error && demoAccounts.some(a => a.email === em)) {
+      try {
+        await supabase.functions.invoke('seed-demo-users');
+        const retry = await signIn(em, pw);
+        error = retry.error;
+      } catch (e) { /* ignore */ }
+    }
+
+    setLoading(false);
+    if (error) return toast.error(error);
+    toast.success('Welcome back');
     navigate('/dashboard');
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password || !fullName) return toast.error('All fields are required');
+    setLoading(true);
+    const { error } = await signUp(email, password, fullName);
+    setLoading(false);
+    if (error) return toast.error(error);
+    // New signups default to patient role (no role assigned until admin adds one — we treat absence as patient)
+    toast.success('Account created. You can now sign in.');
   };
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Left Panel - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-primary relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDI0di0yaDF6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-50" />
         <div className="relative z-10 flex flex-col justify-center px-16">
           <div className="flex items-center gap-4 mb-8">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm">
@@ -106,109 +75,107 @@ export default function LoginPage() {
               <p className="text-white/80">Hospital Management System</p>
             </div>
           </div>
-          
           <h2 className="text-3xl font-semibold text-white mb-4">
             Streamline Your Healthcare Operations
           </h2>
           <p className="text-lg text-white/80 max-w-md mb-8">
-            A comprehensive platform for managing patients, appointments, 
-            lab workflows, and hospital operations efficiently and securely.
+            A comprehensive platform for managing patients, appointments, lab workflows, and hospital operations.
           </p>
-
           <div className="space-y-4">
-            {[
-              'Patient registration & management',
-              'Appointment scheduling & queue',
-              'Lab & pharmacy integration',
-              'Role-based secure access',
-            ].map((feature, i) => (
-              <div key={i} className="flex items-center gap-3 text-white/90">
+            {['Patient registration & management', 'Appointment scheduling & queue', 'Lab & pharmacy integration', 'Role-based secure access'].map((f) => (
+              <div key={f} className="flex items-center gap-3 text-white/90">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
                   <Shield className="h-3.5 w-3.5" />
                 </div>
-                <span>{feature}</span>
+                <span>{f}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Right Panel - Role Selection */}
-      <div className="flex-1 flex flex-col justify-center px-8 lg:px-16">
-        <div className="max-w-lg mx-auto w-full">
-          {/* Mobile Logo */}
+      <div className="flex-1 flex flex-col justify-center px-8 lg:px-16 py-12 overflow-y-auto">
+        <div className="max-w-md mx-auto w-full">
           <div className="lg:hidden flex items-center gap-3 mb-8">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
               <Activity className="h-7 w-7 text-primary-foreground" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Mediflex</h1>
-              <p className="text-sm text-muted-foreground">Hospital Management</p>
-            </div>
+            <h1 className="text-2xl font-bold text-foreground">Mediflex</h1>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-2xl font-semibold text-foreground mb-2">Welcome back</h2>
-            <p className="text-muted-foreground">Select your role to access the dashboard</p>
-          </div>
+          <h2 className="text-2xl font-semibold text-foreground mb-1">Welcome back</h2>
+          <p className="text-muted-foreground mb-6">Sign in to access your dashboard</p>
 
-           {/* Demo Credentials Card */}
-           <Card className="mb-6 border-info/30 bg-info/5">
-             <CardHeader className="pb-2">
-               <CardTitle className="flex items-center gap-2 text-sm text-info">
-                 <Info className="h-4 w-4" />
-                 Demo Login Credentials
-               </CardTitle>
-             </CardHeader>
-             <CardContent className="pt-0">
-               <p className="text-xs text-muted-foreground mb-2">
-                 Click any role below to login. Demo credentials for each role:
-               </p>
-               <div className="grid grid-cols-2 gap-2 text-xs">
-                 {roleOptions.map((option) => (
-                   <div key={option.role} className="flex flex-col">
-                     <span className="font-medium capitalize">{option.label}:</span>
-                     <span className="text-muted-foreground">{option.email}</span>
-                   </div>
-                 ))}
-               </div>
-               <p className="text-xs text-muted-foreground mt-2">
-                 Password for all: <code className="bg-muted px-1 rounded">[role]123</code>
-               </p>
-             </CardContent>
-           </Card>
- 
-           <div className="grid gap-3">
-            {roleOptions.map((option) => (
-              <button
-                key={option.role}
-                onClick={() => handleRoleSelect(option.role)}
-                className={cn(
-                  'flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200',
-                  'text-left group',
-                  option.color
-                )}
-              >
-                <div className={cn(
-                  'flex h-12 w-12 items-center justify-center rounded-xl',
-                  'bg-current/10 transition-transform duration-200 group-hover:scale-110'
-                )}>
-                  <option.icon className="h-6 w-6" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold">{option.label}</h3>
-                  <p className="text-sm opacity-80">{option.description}</p>
-                </div>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                  →
-                </div>
-              </button>
-            ))}
-          </div>
+          <Tabs defaultValue="signin" className="mb-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Sign in</TabsTrigger>
+              <TabsTrigger value="signup">Create account</TabsTrigger>
+            </TabsList>
 
-          <p className="mt-8 text-center text-sm text-muted-foreground">
-            This is a demo. Select any role to explore the system.
-          </p>
+            <TabsContent value="signin">
+              <form onSubmit={(e) => handleLogin(e)} className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@mediflex.com" autoComplete="email" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="signup">
+              <form onSubmit={handleSignup} className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full name</Label>
+                  <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Jane Doe" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="suEmail">Email</Label>
+                  <Input id="suEmail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="suPassword">Password</Label>
+                  <Input id="suPassword" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create account'}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">
+                  New accounts default to patient access. Staff accounts must be created by an administrator.
+                </p>
+              </form>
+            </TabsContent>
+          </Tabs>
+
+          <Card className="border-info/30 bg-info/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm text-info">
+                <Info className="h-4 w-4" /> Demo accounts (click to sign in)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-1.5">
+              {demoAccounts.map((a) => (
+                <button
+                  key={a.email}
+                  type="button"
+                  disabled={loading}
+                  onClick={(e) => handleLogin(e as any, a.email, a.password)}
+                  className="w-full flex items-center justify-between text-xs rounded-md px-2.5 py-1.5 hover:bg-info/10 transition-colors text-left"
+                >
+                  <span className="font-medium">{a.label}</span>
+                  <span className="text-muted-foreground font-mono">{a.email}</span>
+                </button>
+              ))}
+              <p className="text-xs text-muted-foreground pt-2">
+                Password follows the pattern <code className="bg-muted px-1 rounded">[role]123</code>.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

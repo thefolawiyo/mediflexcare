@@ -13,12 +13,15 @@ import Pharmacy from "./pages/Pharmacy";
 import AdminStaff from "./pages/AdminStaff";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
- import Reports from "./pages/Reports";
- import Departments from "./pages/Departments";
- import AuditLogs from "./pages/AuditLogs";
- import DoctorPatients from "./pages/DoctorPatients";
- import NurseCare from "./pages/NurseCare";
- import NurseVitals from "./pages/NurseVitals";
+import Reports from "./pages/Reports";
+import Departments from "./pages/Departments";
+import AuditLogs from "./pages/AuditLogs";
+import DoctorPatients from "./pages/DoctorPatients";
+import NurseCare from "./pages/NurseCare";
+import NurseVitals from "./pages/NurseVitals";
+import PatientAppointments from "./pages/patient/PatientAppointments";
+import PatientLabResults from "./pages/patient/PatientLabResults";
+import PatientPrescriptions from "./pages/patient/PatientPrescriptions";
 
 const queryClient = new QueryClient();
 
@@ -38,12 +41,15 @@ const App = () => (
             <Route path="/pharmacy" element={<Pharmacy />} />
             <Route path="/admin/staff" element={<AdminStaff />} />
             <Route path="/settings" element={<Settings />} />
-             <Route path="/doctor/patients" element={<DoctorPatients />} />
-             <Route path="/nurse/care" element={<NurseCare />} />
-             <Route path="/nurse/vitals" element={<NurseVitals />} />
-             <Route path="/admin/reports" element={<Reports />} />
-             <Route path="/admin/departments" element={<Departments />} />
-             <Route path="/admin/audit" element={<AuditLogs />} />
+            <Route path="/doctor/patients" element={<DoctorPatients />} />
+            <Route path="/nurse/care" element={<NurseCare />} />
+            <Route path="/nurse/vitals" element={<NurseVitals />} />
+            <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/departments" element={<Departments />} />
+            <Route path="/admin/audit" element={<AuditLogs />} />
+            <Route path="/portal/appointments" element={<PatientAppointments />} />
+            <Route path="/portal/labs" element={<PatientLabResults />} />
+            <Route path="/portal/prescriptions" element={<PatientPrescriptions />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
