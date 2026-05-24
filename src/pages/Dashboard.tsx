@@ -3,26 +3,29 @@ import { useAuth } from '@/contexts/AuthContext';
 import { StatCard } from '@/components/ui/stat-card';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { StatusBadge, getStatusVariant } from '@/components/ui/status-badge';
-import { mockAppointments, mockPatients, mockLabTests, mockPrescriptions, mockStaff } from '@/data/mockData';
-import { 
-  Users, 
-  Calendar, 
-  FlaskConical, 
-  Pill, 
-  UserCheck, 
+import { mockAppointments, mockPatients, mockLabTests, mockPrescriptions } from '@/data/mockData';
+import {
+  Users,
+  Calendar,
+  FlaskConical,
+  Pill,
+  UserCheck,
   Clock,
   Activity,
-  TrendingUp
 } from 'lucide-react';
 import { Appointment, LabTest, Prescription } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
- import { useNavigate } from 'react-router-dom';
- import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import PatientDashboard from './patient/PatientDashboard';
 
 export default function Dashboard() {
-  const { user } = useAuth();
-   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  if (loading) return null;
+  if (user?.role === 'patient') return <PatientDashboard />;
 
   const todayAppointments = mockAppointments.filter(a => a.date === '2024-12-20');
   const pendingLabTests = mockLabTests.filter(l => l.status === 'pending' || l.status === 'in-progress');
